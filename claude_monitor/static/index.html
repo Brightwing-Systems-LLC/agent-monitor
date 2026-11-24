@@ -57,8 +57,8 @@
   .chip.sched { border-color: color-mix(in srgb, var(--accent) 70%, transparent);
                 color: color-mix(in srgb, CanvasText 30%, var(--accent)); }
   .chip.old { border-style: dashed; }
-  .chip.agent-codex { border-color: #10a37f; color: color-mix(in srgb, CanvasText 30%, #10a37f); }
-  .chip.agent-gemini { border-color: #8b6cf0; color: color-mix(in srgb, CanvasText 30%, #8b6cf0); }
+  .chip.agent-codex { border-color: #2f6fe4; color: color-mix(in srgb, CanvasText 30%, #2f6fe4); }
+  .chip.agent-gemini { border-color: #ea4335; color: color-mix(in srgb, CanvasText 30%, #4285f4); }
   .chip.warn { border-color: var(--err); color: color-mix(in srgb, CanvasText 30%, var(--err)); }
   @keyframes pulse { 50% { opacity: .45; } }
   .cwd { color: var(--dim); font-size: .8rem; }
@@ -119,6 +119,10 @@
   .spark.busy .prop { transform-origin: 6.5px -4px; animation: whirl .3s linear infinite; }
   .spark .eye { transform-origin: 0 1.5px; animation: blink 4.5s steps(1) infinite; }
   .spark .halo { animation: bob 3s ease-in-out infinite; }
+  .spark.gemini .star { transform-origin: 6.5px 3px; }
+  .spark.gemini.busy .star { animation: spin 6s linear infinite; }
+  .spark.gemini.idle .star { animation: pulse-star 2.8s ease-in-out infinite; }
+  @keyframes pulse-star { 50% { transform: scale(.9); } }
   .spark.quiet { filter: grayscale(.9) opacity(.7); }
   .spark.quiet .eye { animation: none; transform: scaleY(.25) translateY(1.5px); }
   .spark .zz text { font: 700 3px ui-monospace, monospace; fill: var(--faint); opacity: 0;

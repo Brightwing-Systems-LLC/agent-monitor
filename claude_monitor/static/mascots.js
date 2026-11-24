@@ -1,4 +1,5 @@
-// Pixel agent mascots in costume: the Claude Code crab, a Codex terminal and a Gemini sparkle.
+// Pixel agent mascots in costume: the Claude Code crab, the OpenAI cloud terminal robot and
+// the Gemini sparkle.
 //
 // The mascot is a 13x8 sprite: body cols 2-10 rows 0-5, arms rows 2-3, legs rows 6-7, eyes at
 // (3,1) and (9,1). A costume is four independent slots (head, face, outfit, held item) chosen
@@ -117,7 +118,7 @@ const OUTFITS = {
 // Held in the right hand (x >= 13) unless noted.
 const HELD = {
   none: "",
-  coffee: P([13, 2, 2, 2, "#fff"], [15, 2.5, 0.6, 1, "#fff"])
+  coffee: P([13, 2, 2, 2, "#e9dfcc"], [13, 2, 2, 0.45, "#6f4e37"], [15, 2.5, 0.6, 1, "#d8ccb4"])
     + G("steam", P([13.5, 0, 0.5, 1, "#bbb"], [14.3, -0.8, 0.5, 1, "#bbb"])),
   balloon: G("float", P([12.5, -5, 3, 3, "#e63946"], [13.5, -2, 1, 0.5, "#e63946"])) + px(13.9, -1.5, 0.2, 3.5, "#666"),
   sword: P([13, -3, 1, 5, "#cfd8dc"], [12.5, 2, 2, 0.6, "#8d6e63"], [13, 2.6, 1, 1, "#6d4c41"]),
@@ -179,62 +180,102 @@ function describe(c) {
   return (parts.join(" · ") || "plain") + (c.shiny ? " · ✨ shiny" : "");
 }
 
-let GRADIENT_SEQ = 0;
+// Gemini's four-point sparkle: half-unit cells inside an astroid (|x|^(2/3) + |y|^(2/3) <= r^(2/3)),
+// coloured by angle like the multicolour logo. Computed once.
+const STAR = (() => {
+  const cx = 6.5, cy = 3, r = 5.2, cell = 0.5, cells = [];
+  const stops = [[0, "#4285f4"], [45, "#e8457a"], [90, "#ea4335"], [135, "#fbbc04"],
+    [180, "#34a853"], [225, "#3d9be0"], [270, "#4285f4"], [360, "#4285f4"]];
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const mix = (deg) => {
+    for (let i = 1; i < stops.length; i++) {
+      if (deg <= stops[i][0]) {
+        const [d0, c0] = stops[i - 1], [d1, c1] = stops[i], t = (deg - d0) / (d1 - d0);
+        const [a, b] = [rgb(c0), rgb(c1)];
+        return "#" + a.map((v, k) => Math.round(v + (b[k] - v) * t).toString(16).padStart(2, "0")).join("");
+      }
+    }
+    return stops[0][1];
+  };
+  for (let y = cy - r; y < cy + r; y += cell) {
+    for (let x = cx - r; x < cx + r; x += cell) {
+      const dx = x + cell / 2 - cx, dy = y + cell / 2 - cy;
+      if (Math.abs(dx) ** (2 / 3) + Math.abs(dy) ** (2 / 3) > r ** (2 / 3)) continue;
+      const deg = (Math.atan2(-dy, dx) * 180 / Math.PI + 360) % 360;
+      cells.push([x, y, mix(deg), Math.hypot(dx, dy)]);
+    }
+  }
+  return cells;
+})();
 
-// Agent bodies share one grid so every costume fits all of them: head row 0 spans cols 2-10,
-// eyes sit at (3,1) and (9,1), arms reach cols 0 and 12 around rows 2-3, feet on rows 6-7.
+// Every body shares one grid so hats sit at y=-1 over cols 2-10 and held items at x>=13.
+// `slots` are the costume slots that suit the body; `heldShift` moves held items to its hands.
 function agentBody(agent, shiny) {
   if (agent === "codex") {
-    const frame = shiny ? SHINY : "#2b3137", glow = "#10a37f";
+    const blue = shiny ? SHINY : "#2f6fe4", lite = shiny ? "#ffe39a" : "#7fb2ff";
+    const dark = shiny ? "#b07a00" : "#1a47b0", screen = "#0b1d3d", cyan = "#3fd6ff";
     return {
-      body: P([1, 0, 11, 6, frame], [0, 2, 1, 2, frame], [12, 2, 1, 2, frame], [2, 1, 9, 4, "#0d1117"],
-        [4.5, 2.6, 0.5, 0.5, glow], [5, 3, 0.5, 0.5, glow], [4.5, 3.4, 0.5, 0.5, glow])
-        + G("twinkle", px(5.8, 3.6, 1.6, 0.4, glow)),
-      legs: G("leg a", P([3, 6, 2, 2, frame])) + G("leg b", P([8, 6, 2, 2, frame])),
-      ink: glow, highlight: false, defs: "",
+      slots: ["head", "held"], heldShift: "translate(-2 3.4)",
+      body: P([2, 0, 3, 1.5, blue], [4.5, -1, 4, 2, blue], [8, 0, 3, 1.5, blue],
+        [1.5, 1, 10, 3.6, blue], [1, 1.6, 1, 2.4, blue], [11, 1.6, 1, 2.4, blue],
+        [5, -0.8, 1.6, 0.5, lite], [2.4, 0.3, 1.2, 0.4, lite], [1.5, 4.1, 10, 0.5, dark],
+        [2.5, 1, 8, 2.9, screen], [2.5, 1, 0.4, 0.4, blue], [10.1, 1, 0.4, 0.4, blue],
+        [3.6, 1.7, 0.5, 0.5, cyan], [4.1, 2.2, 0.5, 0.5, cyan], [3.6, 2.7, 0.5, 0.5, cyan],
+        [4.5, 4.6, 4, 1.6, blue], [3.6, 4.8, 0.9, 1.2, blue], [8.5, 4.8, 2.4, 0.9, blue],
+        [5.3, 5.1, 0.4, 0.4, cyan], [6, 5.4, 0.9, 0.25, cyan])
+        + G("twinkle", px(6.4, 2.9, 2.2, 0.45, cyan)),
+      legs: G("leg a", P([5, 6.1, 1.1, 1.1, blue], [4.6, 7, 1.7, 0.6, dark]))
+        + G("leg b", P([6.9, 6.1, 1.1, 1.1, blue], [6.7, 7, 1.7, 0.6, dark])),
+      defs: "",
     };
   }
   if (agent === "gemini") {
-    const id = `gem${++GRADIENT_SEQ}`;
-    const stops = shiny ? ["#ffe066", "#f0b429", "#d98e04"] : ["#4796e3", "#9177c7", "#ca6673"];
-    const fill = `url(#${id})`;
-    return {
-      defs: `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">${stops.map((c, i) =>
-        `<stop offset="${i / 2}" stop-color="${c}"/>`).join("")}</linearGradient></defs>`,
-      body: P([3, 0, 7, 1, fill], [2, 1, 9, 4, fill], [3, 5, 7, 1, fill], [0, 3, 2, 1, fill],
-        [11, 3, 2, 1, fill], [5, 3.3, 3, 0.4, "#1b1d3a"])
-        + G("twinkle", P([6, -3, 1, 3, "#a8c7fa"], [5, -2, 3, 1, "#a8c7fa"])),
-      legs: G("leg a", P([3, 6, 2, 2, shiny ? "#b07a00" : "#6a5bb5"]))
-        + G("leg b", P([8, 6, 2, 2, shiny ? "#b07a00" : "#6a5bb5"])),
-      ink: "#1b1d3a", highlight: true,
-    };
+    const toward = (hex, t) => "#" + [1, 3, 5].map((i) => Math.round(
+      parseInt(hex.slice(i, i + 2), 16) + (255 - parseInt(hex.slice(i, i + 2), 16)) * t)
+      .toString(16).padStart(2, "0")).join("");
+    const cells = STAR.map(([x, y, c, d]) => px(x, y, 0.5, 0.5,
+      shiny ? (d < 2 ? "#ffe9a0" : "#f0b429") : (d < 2.2 ? toward(c, 0.45 - d * 0.15) : c))).join("");
+    return { slots: ["head", "held"], heldShift: "", body: G("star", cells), legs: "", defs: "" };
   }
   const color = shiny ? SHINY : CORAL;
   return {
+    slots: ["head", "face", "outfit", "held"], heldShift: "",
     body: px(2, 0, 9, 6, color) + px(0, 2, 13, 2, color),
     legs: [3, 7].map((x) => px(x, 6, 1, 2, color, "leg a")).join("")
       + [5, 9].map((x) => px(x, 6, 1, 2, color, "leg b")).join(""),
-    ink: "#111", highlight: false, defs: "",
+    defs: "",
   };
 }
 
+const AGENT_LABELS = { claude: "Claude Code", codex: "Codex", gemini: "Gemini" };
+
+function visibleCostume(c, slots) {
+  const v = { ...c };
+  for (const slot of ["head", "face", "outfit", "held"]) if (!slots.includes(slot)) v[slot] = "none";
+  return v;
+}
+
 function spark(seed, mood, small, given, agent = "claude") {
-  const c = given || ASSIGNED.get(String(seed)) || costume(seed);
+  const b = agentBody(agent, false);
+  const c = visibleCostume(given || ASSIGNED.get(String(seed)) || costume(seed), b.slots);
+  const body = c.shiny ? agentBody(agent, true) : b;
   const face = FACES[c.face], outfit = OUTFITS[c.outfit];
-  const b = agentBody(agent, c.shiny);
-  let eyeXs = face.eyes || [3, 9];
-  if (c.face === "eyepatch") eyeXs = [9];
-  const eyes = eyeXs.map((x) => G("eye " + (face.eyeCls || ""), px(x, 1, 1, 1, face.eye || b.ink)
-    + (b.highlight && !face.eye ? px(x, 1, 0.4, 0.4, "#fff") : ""))).join("");
+  let eyes = "";
+  if (agent === "claude") {
+    let eyeXs = face.eyes || [3, 9];
+    if (c.face === "eyepatch") eyeXs = [9];
+    eyes = eyeXs.map((x) => G("eye " + (face.eyeCls || ""), px(x, 1, 1, 1, face.eye || "#111"))).join("");
+  }
+  const held = HELD[c.held] ? (body.heldShift ? `<g transform="${body.heldShift}">${HELD[c.held]}</g>`
+    : HELD[c.held]) : "";
   const sparkle = c.shiny ? G("twinkle", P([11.5, -1.5, 1, 1, "#fff8c4"], [0, 4.5, 0.8, 0.8, "#fff8c4"])) : "";
   const zz = mood === "quiet"
     ? `<g class="zz"><text x="11" y="-1">z</text><text x="11" y="-1">z</text><text x="11" y="-1">z</text></g>` : "";
   const t = -(performance.now() / 1000).toFixed(2);
-  const label = { claude: "Claude Code", codex: "Codex", gemini: "Gemini" }[agent] || agent;
-  return `<svg class="spark ${mood} ${small ? "small" : ""}" style="--t:${t}s" viewBox="-4 -6 21 15"
-    aria-hidden="true">${b.defs}<g class="body">${outfit.under || ""}${b.body}${face.under || ""}${eyes}${
-    face.art || ""}${outfit.art || ""}${HEADS[c.head]}${HELD[c.held]}${sparkle}</g>${b.legs}${zz}<title>${
-    label} · ${describe(c)}</title></svg>`;
+  return `<svg class="spark ${agent} ${mood} ${small ? "small" : ""}" style="--t:${t}s" viewBox="-4 -6 21 15"
+    aria-hidden="true">${body.defs}<g class="body">${outfit.under || ""}${body.body}${face.under || ""}${
+    eyes}${face.art || ""}${outfit.art || ""}${HEADS[c.head]}${held}${sparkle}</g>${body.legs}${zz}<title>${
+    AGENT_LABELS[agent] || agent} · ${describe(c)}</title></svg>`;
 }
 
 function renderGallery(el, count = 120) {
@@ -246,7 +287,7 @@ function renderGallery(el, count = 120) {
   for (let i = 0; i < count; i++) {
     const c = costume(`${salt}-${i}`), agent = ["claude", "codex", "gemini"][i % 3];
     html += `<figure>${spark("", moods[Math.floor(i / 3) % 3], false, c, agent)}<figcaption>${agent} · ${
-      describe(c)}</figcaption></figure>`;
+      describe(visibleCostume(c, agentBody(agent, false).slots))}</figcaption></figure>`;
   }
   el.innerHTML = html + "</div>";
   el.querySelector("#reroll").onclick = () => renderGallery(el, count);
