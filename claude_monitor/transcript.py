@@ -76,19 +76,27 @@ class TranscriptState:
 
 
 class TranscriptReader:
-    def __init__(self, path: str):
+    """Tails a JSONL file, folding each new record into a state object.
+
+    `factory` makes an empty state and `apply(state, record)` folds one record in; the defaults
+    read Claude Code transcripts, and other agents pass their own.
+    """
+
+    def __init__(self, path: str, factory=None, apply=None):
         self.path = path
         self.offset = 0
         self.inode = None
-        self.state = TranscriptState()
+        self.factory = factory or TranscriptState
+        self.apply = apply or apply_record
+        self.state = self.factory()
 
-    def refresh(self) -> TranscriptState:
+    def refresh(self):
         try:
             st = os.stat(self.path)
         except OSError:
             return self.state
         if st.st_ino != self.inode or st.st_size < self.offset:
-            self.inode, self.offset, self.state = st.st_ino, 0, TranscriptState()
+            self.inode, self.offset, self.state = st.st_ino, 0, self.factory()
         if st.st_size == self.offset:
             return self.state
         with open(self.path, "rb") as fh:
@@ -108,7 +116,7 @@ class TranscriptReader:
         except (ValueError, UnicodeDecodeError):
             return
         if isinstance(rec, dict):
-            apply_record(self.state, rec)
+            self.apply(self.state, rec)
 
 
 def apply_record(s: TranscriptState, rec: dict) -> None:

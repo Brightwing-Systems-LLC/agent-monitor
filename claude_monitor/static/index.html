@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>claude sessions</title>
+<title>agent sessions</title>
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -57,6 +57,8 @@
   .chip.sched { border-color: color-mix(in srgb, var(--accent) 70%, transparent);
                 color: color-mix(in srgb, CanvasText 30%, var(--accent)); }
   .chip.old { border-style: dashed; }
+  .chip.agent-codex { border-color: #10a37f; color: color-mix(in srgb, CanvasText 30%, #10a37f); }
+  .chip.agent-gemini { border-color: #8b6cf0; color: color-mix(in srgb, CanvasText 30%, #8b6cf0); }
   .chip.warn { border-color: var(--err); color: color-mix(in srgb, CanvasText 30%, var(--err)); }
   @keyframes pulse { 50% { opacity: .45; } }
   .cwd { color: var(--dim); font-size: .8rem; }
@@ -147,10 +149,11 @@
 </style>
 </head>
 <body>
-<h1>claude sessions <small id="updated"></small><span class="spacer"></span><small><a href="#gallery">mascots</a></small></h1>
+<h1>agent sessions <small id="updated"></small><span class="spacer"></span><small><a href="#gallery">mascots</a></small></h1>
 <div class="summary" id="summary"></div>
 <div class="toolbar">
   <input type="search" id="q" placeholder="filter: name, folder, prompt, host…">
+  <select id="agent"><option value="">all agents</option></select>
   <select id="host"><option value="">all hosts</option></select>
   <select id="sort">
     <option value="activity">sort: last activity</option>
@@ -238,9 +241,9 @@ function quiet(s) {
 function schedCount(s) { return s.crons.length + (s.wakeup ? 1 : 0) + s.durable_tasks.length; }
 
 function filtered() {
-  const q = $("#q").value.trim().toLowerCase(), host = $("#host").value;
+  const q = $("#q").value.trim().toLowerCase(), host = $("#host").value, agent = $("#agent").value;
   let rows = data.sessions.filter((s) =>
-    (!host || s.host === host) &&
+    (!host || s.host === host) && (!agent || s.agent === agent) &&
     (!$("#quiet").checked || (quiet(s) && !schedCount(s))) &&
     (!q || [s.name, s.title, s.cwd, s.host, s.last_input_text, s.config_short, String(s.pid)]
             .join(" ").toLowerCase().includes(q)));
@@ -288,27 +291,31 @@ const twins = (s) => s.session_id
 function card(s) {
   const busy = s.status === "busy", inFlight = data.running_actions["pid:" + s.pid];
   const title = s.title || s.name;
-  const cmd = s.command, n = schedCount(s);
+  const cmd = s.command || {resumable: false, secret_env: [], shell: "", original: ""}, n = schedCount(s);
   const lastIn = s.last_input_at, lastOut = s.last_output_at;
   const staleCls = (t) => t && Date.now() / 1000 - t > DAY ? "stale" : "";
   const notes = [];
   if (cmd.dropped_prompt) notes.push("its initial prompt is left out of the resume command");
   if (cmd.secret_env.length) notes.push("secret env not repeated: " + cmd.secret_env.join(", "));
-  if (!cmd.resumable) notes.push("cannot be resumed (print mode or no session id)");
+  if (!cmd.resumable) notes.push("cannot be resumed (print mode, or no session found yet)");
+  if (s.session_match && s.session_match.includes("time"))
+    notes.push("session matched by folder and timing; check the id before relying on it");
+  if (data.platform === "win32") notes.push("on Windows, stop ends the process immediately");
   return `<div class="card ${busy ? "busy" : s.status === "idle" ? "idle" : ""} ${
       selected.has(s.pid) ? "selected" : ""}" data-pid="${s.pid}">
     <input type="checkbox" data-sel="${s.pid}" ${selected.has(s.pid) ? "checked" : ""}>
     <div>
       <div class="mast">
-        ${spark(s.session_id || s.pid, mood(s))}
+        ${spark(s.session_id || s.pid, mood(s), false, null, s.agent)}
         <span class="title ${title ? "" : "none"}">${esc(title || "untitled session")}</span>
         ${s.status ? `<span class="chip ${esc(s.status)}">${esc(s.status)}</span>` : ""}
         ${s.name && s.title ? `<span class="chip">${esc(s.name)}</span>` : ""}
         <span class="chip">${esc(s.host)}</span>
-        ${s.config_short !== "~/.claude" ? `<span class="chip">${esc(s.config_short)}</span>` : ""}
+        ${s.config_short && s.config_short !== "~/.claude" ? `<span class="chip">${esc(s.config_short)}</span>` : ""}
         ${n ? `<span class="chip sched">${n} scheduled</span>` : ""}
         ${quiet(s) ? `<span class="chip old">quiet ${ago(s.last_activity_at || s.started_at).replace(" ago", "")}</span>` : ""}
-        ${s.parent_is_claude ? `<span class="chip">child of a claude</span>` : ""}
+        ${s.agent !== "claude" ? `<span class="chip agent-${esc(s.agent)}">${esc(s.agent_label)}</span>` : ""}
+        ${s.parent_is_agent ? `<span class="chip">child of another agent</span>` : ""}
         ${twins(s).length ? `<span class="chip warn" title="Two processes appending to one conversation can interleave its history">same session also open in pid ${twins(s).join(", ")}</span>` : ""}
       </div>
       <div class="cwd" title="${esc(s.cwd)}">${esc(s.cwd_short)}</div>
@@ -330,7 +337,7 @@ function card(s) {
             ${cmd.resumable && !inFlight ? "" : "disabled"}>${inFlight === "restart" ? "restarting…" : "restart"}</button>
           <button class="btn danger ${inFlight === "stop" ? "working" : ""}" data-act="stop"
             ${inFlight ? "disabled" : ""}>${inFlight === "stop" ? "stopping…" : "stop"}</button>
-          <button class="btn danger" data-act="force" ${inFlight === "force stop" ? "disabled" : ""}>force</button>
+          ${data.platform === "win32" ? "" : `<button class="btn danger" data-act="force" ${inFlight === "force stop" ? "disabled" : ""}>force</button>`}
         </div>
         <span>pid ${s.pid}${s.version ? " · v" + esc(s.version) : ""}</span>
         ${s.remote_url ? `<a href="${esc(s.remote_url)}" target="_blank" rel="noopener">remote control ↗</a>` : ""}
@@ -350,7 +357,7 @@ function pastRow(p) {
   const inFlight = data.running_actions["sid:" + p.session_id];
   const when = p.stopped_at || p.updated_at;
   return `<div class="past" data-sid="${esc(p.session_id)}">
-    <span class="n" title="${esc(p.title || p.name)}">${spark(p.session_id, "stopped", true)} ${esc(p.title || p.name || p.session_id.slice(0, 8))}</span>
+    <span class="n" title="${esc(p.title || p.name)}">${spark(p.session_id, "stopped", true, null, p.agent || "claude")} ${esc(p.title || p.name || p.session_id.slice(0, 8))}</span>
     <span class="n cwd" title="${esc(p.cwd)}">${esc(p.cwd_short)}</span>
     <span class="note">${p.source === "dashboard" ? "stopped here" : "exited / crashed"}</span>
     <span class="note" title="${esc(abs(when))}">${ago(when)}</span>
@@ -372,6 +379,11 @@ function render(force) {
   if (!data) return;
   if (!force && userBusy()) return;
   const S = data.sessions;
+  const asel = $("#agent");
+  if (asel.options.length - 1 !== data.agents.length) {
+    asel.innerHTML = `<option value="">all agents</option>` +
+      data.agents.map((a) => `<option value="${esc(a.key)}">${esc(a.label)}</option>`).join("");
+  }
   const hosts = [...new Set(S.map((s) => s.host))].sort();
   const sel = $("#host");
   if (sel.options.length - 1 !== hosts.length) {
@@ -384,7 +396,9 @@ function render(force) {
   const q = S.filter((s) => quiet(s) && !schedCount(s)).length;
   const mem = S.reduce((a, s) => a + s.rss_mb, 0);
   const sched = S.reduce((a, s) => a + schedCount(s), 0);
-  $("#summary").innerHTML = `<span><b>${S.length}</b> running</span><span><b>${busy}</b> busy</span>
+  const perAgent = data.agents.map((a) => [a.label, S.filter((s) => s.agent === a.key).length])
+    .filter(([, n]) => n).map(([l, n]) => `${n} ${esc(l)}`).join(" · ");
+  $("#summary").innerHTML = `<span><b>${S.length}</b> running <small>(${perAgent})</small></span><span><b>${busy}</b> busy</span>
     <span><b>${q}</b> quiet &gt; 24h with nothing scheduled</span>
     <span><b>${sched}</b> scheduled jobs</span><span><b>${(mem / 1024).toFixed(1)}</b> GB memory</span>`;
   $("#updated").textContent = "updated " + new Date(data.generated_at * 1000).toLocaleTimeString();
@@ -425,7 +439,7 @@ $("#list").addEventListener("click", async (ev) => {
   const run = async () => {
     try {
       const path = act === "force" ? "stop" : act;
-      await post(`/api/session/${s.pid}/${path}`, {lstart: s.lstart, force: act === "force"});
+      await post(`/api/session/${s.pid}/${path}`, {proc_start: s.proc_start, force: act === "force"});
       if (act !== "focus") refresh();
     } catch (e) {
       toast(e.message, false);
@@ -468,12 +482,12 @@ $("#stopSel").addEventListener("click", (ev) => arm(ev.target, async () => {
   for (const pid of [...selected]) {
     const s = byPid(pid);
     if (!s) continue;
-    try { await post(`/api/session/${pid}/stop`, {lstart: s.lstart}); }
+    try { await post(`/api/session/${pid}/stop`, {proc_start: s.proc_start}); }
     catch (e) { toast(`${s.name || pid}: ${e.message}`, false); }
   }
   selected.clear(); refresh();
 }));
-for (const id of ["#q", "#host", "#sort", "#quiet"]) $(id).addEventListener("input", () => render(true));
+for (const id of ["#q", "#agent", "#host", "#sort", "#quiet"]) $(id).addEventListener("input", () => render(true));
 
 let timer = null, inflight = false;
 async function refresh() {

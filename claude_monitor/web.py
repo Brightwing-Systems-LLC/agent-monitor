@@ -123,13 +123,7 @@ def api_sessions():
         if (st.get("updated_at") or 0) < cutoff:
             continue
         seen.add(sid)
-        past.append(
-            st
-            | {
-                "source": "exited",
-                "command": actions.basic_resume_command(sid, st["cwd"], st["config_dir"]),
-            }
-        )
+        past.append(st | {"source": "exited"})
     past.sort(key=lambda p: -(p.get("stopped_at") or p.get("updated_at") or 0))
     with _lock:
         data["running_actions"] = dict(_running)
@@ -142,7 +136,11 @@ def _session_from_request(pid: int) -> dict:
     body = request.get_json(silent=True) or {}
     with _lock:
         session = _last.get(pid)
-    if not session or session["lstart"] != body.get("lstart"):
+    try:
+        started = float(body.get("proc_start"))
+    except (TypeError, ValueError):
+        abort(400, "proc_start required")
+    if not session or abs(session["proc_start"] - started) > 0.01:
         abort(409, "session changed; refresh")
     return session
 
@@ -153,9 +151,9 @@ def api_stop(pid: int):
     force = bool((request.get_json(silent=True) or {}).get("force"))
 
     def do():
-        actions.stop(pid, session["lstart"], force=force)
+        actions.stop(pid, session["proc_start"], session["agent"], force=force)
         stopped.add(session)
-        if actions.wait_exit(pid):
+        if actions.wait_exit(pid, session["proc_start"]):
             return f"stopped {session['name'] or pid}"
         raise actions.ActionError(f"{session['name'] or pid} has not exited yet; Force stop it")
 
@@ -165,13 +163,13 @@ def api_stop(pid: int):
 @app.post("/api/session/<int:pid>/restart")
 def api_restart(pid: int):
     session = _session_from_request(pid)
-    if not session["command"]["resumable"]:
+    if not (session["command"] or {}).get("resumable"):
         return jsonify(error="this session cannot be resumed"), 400
 
     def do():
-        actions.stop(pid, session["lstart"])
+        actions.stop(pid, session["proc_start"], session["agent"])
         stopped.add(session)
-        if not actions.wait_exit(pid):
+        if not actions.wait_exit(pid, session["proc_start"]):
             raise actions.ActionError(
                 f"{session['name'] or pid} did not exit within {actions.STOP_WAIT_S}s; "
                 "nothing was relaunched. Force stop it, then Start it from Stopped."
@@ -199,9 +197,7 @@ def _past(session_id: str) -> dict:
         return item
     for st in monitor.gather()["stale"]:
         if st["session_id"] == session_id:
-            return st | {
-                "command": actions.basic_resume_command(session_id, st["cwd"], st["config_dir"])
-            }
+            return st
     abort(404)
 
 

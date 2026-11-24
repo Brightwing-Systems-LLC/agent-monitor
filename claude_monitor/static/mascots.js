@@ -1,4 +1,4 @@
-// Pixel Claude Code mascots in costume.
+// Pixel agent mascots in costume: the Claude Code crab, a Codex terminal and a Gemini sparkle.
 //
 // The mascot is a 13x8 sprite: body cols 2-10 rows 0-5, arms rows 2-3, legs rows 6-7, eyes at
 // (3,1) and (9,1). A costume is four independent slots (head, face, outfit, held item) chosen
@@ -179,23 +179,62 @@ function describe(c) {
   return (parts.join(" · ") || "plain") + (c.shiny ? " · ✨ shiny" : "");
 }
 
-function spark(seed, mood, small, given) {
+let GRADIENT_SEQ = 0;
+
+// Agent bodies share one grid so every costume fits all of them: head row 0 spans cols 2-10,
+// eyes sit at (3,1) and (9,1), arms reach cols 0 and 12 around rows 2-3, feet on rows 6-7.
+function agentBody(agent, shiny) {
+  if (agent === "codex") {
+    const frame = shiny ? SHINY : "#2b3137", glow = "#10a37f";
+    return {
+      body: P([1, 0, 11, 6, frame], [0, 2, 1, 2, frame], [12, 2, 1, 2, frame], [2, 1, 9, 4, "#0d1117"],
+        [4.5, 2.6, 0.5, 0.5, glow], [5, 3, 0.5, 0.5, glow], [4.5, 3.4, 0.5, 0.5, glow])
+        + G("twinkle", px(5.8, 3.6, 1.6, 0.4, glow)),
+      legs: G("leg a", P([3, 6, 2, 2, frame])) + G("leg b", P([8, 6, 2, 2, frame])),
+      ink: glow, highlight: false, defs: "",
+    };
+  }
+  if (agent === "gemini") {
+    const id = `gem${++GRADIENT_SEQ}`;
+    const stops = shiny ? ["#ffe066", "#f0b429", "#d98e04"] : ["#4796e3", "#9177c7", "#ca6673"];
+    const fill = `url(#${id})`;
+    return {
+      defs: `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">${stops.map((c, i) =>
+        `<stop offset="${i / 2}" stop-color="${c}"/>`).join("")}</linearGradient></defs>`,
+      body: P([3, 0, 7, 1, fill], [2, 1, 9, 4, fill], [3, 5, 7, 1, fill], [0, 3, 2, 1, fill],
+        [11, 3, 2, 1, fill], [5, 3.3, 3, 0.4, "#1b1d3a"])
+        + G("twinkle", P([6, -3, 1, 3, "#a8c7fa"], [5, -2, 3, 1, "#a8c7fa"])),
+      legs: G("leg a", P([3, 6, 2, 2, shiny ? "#b07a00" : "#6a5bb5"]))
+        + G("leg b", P([8, 6, 2, 2, shiny ? "#b07a00" : "#6a5bb5"])),
+      ink: "#1b1d3a", highlight: true,
+    };
+  }
+  const color = shiny ? SHINY : CORAL;
+  return {
+    body: px(2, 0, 9, 6, color) + px(0, 2, 13, 2, color),
+    legs: [3, 7].map((x) => px(x, 6, 1, 2, color, "leg a")).join("")
+      + [5, 9].map((x) => px(x, 6, 1, 2, color, "leg b")).join(""),
+    ink: "#111", highlight: false, defs: "",
+  };
+}
+
+function spark(seed, mood, small, given, agent = "claude") {
   const c = given || ASSIGNED.get(String(seed)) || costume(seed);
   const face = FACES[c.face], outfit = OUTFITS[c.outfit];
-  const color = c.shiny ? SHINY : CORAL;
-  const body = px(2, 0, 9, 6, color) + px(0, 2, 13, 2, color);
-  const legs = [3, 7].map((x) => px(x, 6, 1, 2, color, "leg a")).join("")
-    + [5, 9].map((x) => px(x, 6, 1, 2, color, "leg b")).join("");
+  const b = agentBody(agent, c.shiny);
   let eyeXs = face.eyes || [3, 9];
   if (c.face === "eyepatch") eyeXs = [9];
-  const eyes = eyeXs.map((x) => px(x, 1, 1, 1, face.eye || "#111", "eye " + (face.eyeCls || ""))).join("");
+  const eyes = eyeXs.map((x) => G("eye " + (face.eyeCls || ""), px(x, 1, 1, 1, face.eye || b.ink)
+    + (b.highlight && !face.eye ? px(x, 1, 0.4, 0.4, "#fff") : ""))).join("");
   const sparkle = c.shiny ? G("twinkle", P([11.5, -1.5, 1, 1, "#fff8c4"], [0, 4.5, 0.8, 0.8, "#fff8c4"])) : "";
   const zz = mood === "quiet"
     ? `<g class="zz"><text x="11" y="-1">z</text><text x="11" y="-1">z</text><text x="11" y="-1">z</text></g>` : "";
   const t = -(performance.now() / 1000).toFixed(2);
+  const label = { claude: "Claude Code", codex: "Codex", gemini: "Gemini" }[agent] || agent;
   return `<svg class="spark ${mood} ${small ? "small" : ""}" style="--t:${t}s" viewBox="-4 -6 21 15"
-    aria-hidden="true"><g class="body">${outfit.under || ""}${body}${face.under || ""}${eyes}${face.art || ""}${
-    outfit.art || ""}${HEADS[c.head]}${HELD[c.held]}${sparkle}</g>${legs}${zz}<title>${describe(c)}</title></svg>`;
+    aria-hidden="true">${b.defs}<g class="body">${outfit.under || ""}${b.body}${face.under || ""}${eyes}${
+    face.art || ""}${outfit.art || ""}${HEADS[c.head]}${HELD[c.held]}${sparkle}</g>${b.legs}${zz}<title>${
+    label} · ${describe(c)}</title></svg>`;
 }
 
 function renderGallery(el, count = 120) {
@@ -205,8 +244,9 @@ function renderGallery(el, count = 120) {
     Hover a mascot for its outfit. <button class="btn" id="reroll">re-roll</button>
     <a href="#">back to sessions</a></p><div class="gallery">`;
   for (let i = 0; i < count; i++) {
-    const c = costume(`${salt}-${i}`);
-    html += `<figure>${spark("", moods[i % 3], false, c)}<figcaption>${describe(c)}</figcaption></figure>`;
+    const c = costume(`${salt}-${i}`), agent = ["claude", "codex", "gemini"][i % 3];
+    html += `<figure>${spark("", moods[Math.floor(i / 3) % 3], false, c, agent)}<figcaption>${agent} · ${
+      describe(c)}</figcaption></figure>`;
   }
   el.innerHTML = html + "</div>";
   el.querySelector("#reroll").onclick = () => renderGallery(el, count);
