@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>claude sessions</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-1%20-4%2015%2015'%20shape-rendering='crispEdges'%3E%3Cg%20fill='%23d97757'%3E%3Crect%20x='2'%20y='0'%20width='9'%20height='6'/%3E%3Crect%20x='0'%20y='2'%20width='13'%20height='2'/%3E%3Crect%20x='3'%20y='6'%20width='1'%20height='2'/%3E%3Crect%20x='5'%20y='6'%20width='1'%20height='2'/%3E%3Crect%20x='7'%20y='6'%20width='1'%20height='2'/%3E%3Crect%20x='9'%20y='6'%20width='1'%20height='2'/%3E%3C/g%3E%3Crect%20x='3'%20y='1'%20width='1'%20height='1'/%3E%3Crect%20x='9'%20y='1'%20width='1'%20height='1'/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark;
+          --ok: #10b981; --warn: #f59e0b; --err: #ef4444; --accent: #d97757;
+          --line: color-mix(in srgb, CanvasText 14%, transparent);
+          --dim: color-mix(in srgb, CanvasText 62%, transparent);
+          --faint: color-mix(in srgb, CanvasText 40%, transparent);
+          --link: color-mix(in srgb, CanvasText 45%, #3b82f6); }
+  * { box-sizing: border-box; }
+  body { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+         font-size: 13px; line-height: 1.5; margin: 2rem auto; max-width: 1180px;
+         padding: 0 1.25rem; color: CanvasText; background: Canvas; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1 { font-size: 1.05rem; letter-spacing: .05em; margin: 0 0 .9rem;
+       display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; }
+  h1 small { font-weight: 400; color: var(--dim); font-size: .74rem; letter-spacing: 0; }
+  h2 { font-size: .78rem; text-transform: uppercase; letter-spacing: .12em; color: var(--faint);
+       margin: 2rem 0 .5rem; font-weight: 600; }
+  .summary { display: flex; gap: 1.4rem; flex-wrap: wrap; color: var(--dim); font-size: .78rem;
+             margin-bottom: .8rem; }
+  .summary b { color: CanvasText; font-weight: 600; }
+  .toolbar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center;
+             padding: .5rem 0 .7rem; border-bottom: 1px solid var(--line); margin-bottom: .4rem;
+             position: sticky; top: 0; background: Canvas; z-index: 2; }
+  .toolbar input[type=search], .toolbar select {
+    font: inherit; font-size: .78rem; padding: .22rem .5rem; border-radius: 5px;
+    border: 1px solid var(--line); background: transparent; color: CanvasText; }
+  .toolbar input[type=search] { width: 16rem; }
+  .toolbar label { color: var(--dim); font-size: .76rem; display: flex; gap: .35rem;
+                   align-items: center; cursor: pointer; }
+  .spacer { flex: 1; }
+  .card { border: 1px solid var(--line); border-left: 3px solid var(--edge, var(--line));
+          border-radius: 8px; padding: .65rem .9rem .6rem; margin: .5rem 0;
+          display: grid; grid-template-columns: 1.3rem minmax(0, 1fr); gap: 0 .5rem; }
+  .card.busy { --edge: var(--warn); }
+  .card.idle { --edge: var(--ok); }
+  .card.selected { background: color-mix(in srgb, var(--accent) 7%, Canvas); }
+  .card input[type=checkbox] { margin: .25rem 0 0; }
+  .mast { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .title { font-weight: 700; font-size: .95rem; }
+  .title.none { color: var(--faint); font-weight: 400; font-style: italic; }
+  .chip { font-size: .68rem; padding: .02rem .5rem; border-radius: 99px;
+          border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .chip.busy { border-color: var(--warn); color: color-mix(in srgb, CanvasText 35%, var(--warn));
+               animation: pulse 1.2s ease-in-out infinite; }
+  .chip.idle { border-color: color-mix(in srgb, var(--ok) 60%, transparent);
+               color: color-mix(in srgb, CanvasText 35%, var(--ok)); }
+  .chip.sched { border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+                color: color-mix(in srgb, CanvasText 30%, var(--accent)); }
+  .chip.old { border-style: dashed; }
+  @keyframes pulse { 50% { opacity: .45; } }
+  .cwd { color: var(--dim); font-size: .8rem; }
+  .times { display: grid; grid-template-columns: repeat(4, minmax(0, max-content)); gap: .1rem 1.6rem;
+           margin: .45rem 0 .2rem; font-size: .78rem; }
+  .times .k { text-transform: uppercase; font-size: .62rem; letter-spacing: .12em; color: var(--faint); }
+  .times .v.stale { color: color-mix(in srgb, CanvasText 45%, var(--warn)); }
+  .prompt { color: var(--dim); font-size: .78rem; margin: .2rem 0; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .prompt::before { content: "› "; color: var(--faint); }
+  .sched { margin: .4rem 0 .1rem; padding: .35rem .6rem; border-radius: 6px; font-size: .76rem;
+           border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+           background: color-mix(in srgb, var(--accent) 5%, transparent); display: grid; gap: .15rem; }
+  .sched .row { display: grid; grid-template-columns: 9rem 19rem minmax(0, 1fr); gap: .8rem; }
+  .sched .p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
+  .foot { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; margin-top: .45rem;
+          font-size: .74rem; color: var(--faint); }
+  .actions { display: flex; gap: .35rem; flex-wrap: wrap; }
+  button.btn { font: inherit; font-size: .66rem; text-transform: uppercase; letter-spacing: .07em;
+               padding: .14rem .55rem; border-radius: 5px; cursor: pointer; color: var(--dim);
+               border: 1px solid var(--line); background: transparent; }
+  button.btn:hover { color: CanvasText; border-color: var(--faint);
+                     background: color-mix(in srgb, CanvasText 6%, transparent); }
+  button.btn:disabled { opacity: .4; cursor: default; }
+  button.btn.primary { border-color: color-mix(in srgb, var(--ok) 60%, transparent);
+                       color: color-mix(in srgb, CanvasText 35%, var(--ok)); }
+  button.btn.danger { border-color: color-mix(in srgb, var(--err) 50%, transparent);
+                      color: color-mix(in srgb, CanvasText 35%, var(--err)); }
+  button.btn.armed { background: var(--err); color: Canvas; border-color: var(--err); }
+  button.btn.working { animation: pulse 1s infinite; }
+  details.cmd { margin-top: .35rem; font-size: .74rem; }
+  details.cmd summary { cursor: pointer; color: var(--faint); width: max-content; }
+  details.cmd .line { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; gap: .6rem;
+                      align-items: start; margin: .25rem 0; }
+  details.cmd .k { color: var(--faint); text-transform: uppercase; font-size: .62rem;
+                   letter-spacing: .1em; padding-top: .2rem; }
+  code { font-size: .74rem; background: color-mix(in srgb, CanvasText 7%, transparent);
+         padding: .15rem .4rem; border-radius: 5px; word-break: break-all; white-space: pre-wrap; }
+  .note { color: var(--faint); font-size: .72rem; }
+  .past { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.5fr) 8rem 7rem auto;
+          gap: .8rem; align-items: center; padding: .35rem .2rem; border-bottom: 1px solid var(--line);
+          font-size: .78rem; }
+  .past .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--faint); padding: 1rem 0; }
+  #toasts { position: fixed; right: 1rem; bottom: 1rem; display: grid; gap: .4rem; z-index: 5;
+            max-width: 32rem; }
+  .toast { padding: .5rem .8rem; border-radius: 6px; font-size: .78rem; color: Canvas;
+           background: color-mix(in srgb, CanvasText 85%, var(--ok)); box-shadow: 0 4px 16px #0003; }
+  .toast.err { background: var(--err); }
+  .err-banner { color: var(--err); margin: .5rem 0; }
+  .spark { width: 46px; height: 46px; flex: none; overflow: visible; shape-rendering: crispEdges; }
+  .spark.small { width: 22px; height: 22px; }
+  .spark * { animation-delay: var(--t, 0s) !important; transform-box: view-box; }
+  .spark.idle .body { animation: bob 2.4s steps(2, jump-none) infinite; }
+  .spark.busy .body { animation: bob .5s steps(2, jump-none) infinite; }
+  .spark.busy .leg.a { animation: step .5s steps(1) infinite; }
+  .spark.busy .leg.b { animation: step .5s steps(1) infinite reverse; }
+  .spark.busy .prop { transform-origin: 6.5px -4px; animation: whirl .3s linear infinite; }
+  .spark .eye { transform-origin: 0 1.5px; animation: blink 4.5s steps(1) infinite; }
+  .spark .halo { animation: bob 3s ease-in-out infinite; }
+  .spark.quiet { filter: grayscale(.9) opacity(.7); }
+  .spark.quiet .eye { animation: none; transform: scaleY(.25) translateY(1.5px); }
+  .spark .zz text { font: 700 3px ui-monospace, monospace; fill: var(--faint); opacity: 0;
+                    animation: snore 3s ease-in infinite; }
+  .spark .zz text:nth-child(2) { animation-delay: calc(var(--t, 0s) + 1s) !important; }
+  .spark .zz text:nth-child(3) { animation-delay: calc(var(--t, 0s) + 2s) !important; }
+  .spark.stopped { filter: grayscale(1) opacity(.45); }
+  @keyframes bob { 50% { transform: translateY(-.6px); } }
+  @keyframes step { 50% { transform: translateY(-.6px); } }
+  @keyframes whirl { to { transform: scaleX(-1); } }
+  @keyframes blink { 0%, 94% { transform: scaleY(1); } 95%, 98% { transform: scaleY(.15); } }
+  @keyframes snore { 0% { opacity: 0; transform: translate(0, 0); }
+                     30% { opacity: 1; } 100% { opacity: 0; transform: translate(3px, -5px); } }
+  @media (prefers-reduced-motion: reduce) { .spark * { animation: none !important; } }
+</style>
+</head>
+<body>
+<h1>claude sessions <small id="updated"></small></h1>
+<div class="summary" id="summary"></div>
+<div class="toolbar">
+  <input type="search" id="q" placeholder="filter: name, folder, prompt, host…">
+  <select id="host"><option value="">all hosts</option></select>
+  <select id="sort">
+    <option value="activity">sort: last activity</option>
+    <option value="started">sort: started</option>
+    <option value="cpu">sort: cpu time</option>
+    <option value="mem">sort: memory</option>
+  </select>
+  <label><input type="checkbox" id="quiet"> quiet &gt; 24h only</label>
+  <span class="spacer"></span>
+  <button class="btn" id="selAll">select shown</button>
+  <button class="btn danger" id="stopSel" disabled>stop selected</button>
+</div>
+<div id="banner"></div>
+<div id="list"><div class="empty">scanning sessions…</div></div>
+<h2>Stopped / exited <small class="note">resumable with the same options</small></h2>
+<div id="past"></div>
+<div id="toasts"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const DAY = 86400;
+let data = null, selected = new Set(), seenToasts = new Set(), firstLoad = true;
+const openDetails = new Set();
+
+function ago(t) {
+  if (!t) return "—";
+  const s = Math.max(0, Date.now() / 1000 - t);
+  if (s < 60) return Math.round(s) + "s ago";
+  if (s < 3600) return Math.round(s / 60) + "m ago";
+  if (s < DAY) return (s / 3600).toFixed(s < 36000 ? 1 : 0) + "h ago";
+  return (s / DAY).toFixed(s < 10 * DAY ? 1 : 0) + "d ago";
+}
+function until(t) {
+  const s = t - Date.now() / 1000;
+  if (s <= 0) return "due";
+  if (s < 3600) return "in " + Math.round(s / 60) + "m";
+  if (s < DAY) return "in " + (s / 3600).toFixed(1) + "h";
+  return "in " + (s / DAY).toFixed(1) + "d";
+}
+const abs = (t) => t ? new Date(t * 1000).toLocaleString() : "";
+function dur(sec) {
+  if (sec < 60) return Math.round(sec) + "s";
+  if (sec < 3600) return Math.round(sec / 60) + "m";
+  return (sec / 3600).toFixed(1) + "h";
+}
+
+async function post(url, body) {
+  const r = await fetch(url, {method: "POST",
+    headers: {"Content-Type": "application/json", "X-Claude-Monitor": "1"},
+    body: JSON.stringify(body || {})});
+  let j = {};
+  try { j = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function toast(msg, ok = true) {
+  const el = document.createElement("div");
+  el.className = "toast" + (ok ? "" : " err");
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), ok ? 4000 : 9000);
+}
+
+async function copy(text, label) {
+  try { await navigator.clipboard.writeText(text); toast("copied " + label); }
+  catch (e) { toast("copy failed: " + e.message, false); }
+}
+
+function arm(btn, run) {
+  if (btn.classList.contains("armed")) { btn.classList.remove("armed"); run(); return; }
+  const label = btn.textContent;
+  btn.classList.add("armed");
+  btn.textContent = "confirm " + label + "?";
+  setTimeout(() => { btn.classList.remove("armed"); btn.textContent = label; }, 5000);
+}
+
+function quiet(s) {
+  const t = s.last_activity_at || s.started_at;
+  return t && Date.now() / 1000 - t > DAY;
+}
+function schedCount(s) { return s.crons.length + (s.wakeup ? 1 : 0) + s.durable_tasks.length; }
+
+function filtered() {
+  const q = $("#q").value.trim().toLowerCase(), host = $("#host").value;
+  let rows = data.sessions.filter((s) =>
+    (!host || s.host === host) &&
+    (!$("#quiet").checked || (quiet(s) && !schedCount(s))) &&
+    (!q || [s.name, s.title, s.cwd, s.host, s.last_input_text, s.config_short, String(s.pid)]
+            .join(" ").toLowerCase().includes(q)));
+  const key = $("#sort").value;
+  const by = {activity: (s) => -(s.last_activity_at || s.started_at || 0),
+              started: (s) => -(s.started_at || 0), cpu: (s) => -s.cpu_seconds,
+              mem: (s) => -s.rss_mb}[key];
+  return rows.sort((a, b) => by(a) - by(b));
+}
+
+function schedHtml(s) {
+  const rows = [];
+  for (const c of s.crons) {
+    rows.push(`<div class="row"><span>cron ${esc(c.id)}</span><span>${esc(c.schedule)}${
+      c.recurring ? "" : " · once " + esc(c.next_fire_at ? until(c.next_fire_at) : "")}${
+      c.expires_at && c.recurring ? " · expires " + until(c.expires_at) : ""}</span>
+      <span class="p" title="${esc(c.prompt)}">${esc(c.prompt)}</span></div>`);
+  }
+  if (s.wakeup) {
+    rows.push(`<div class="row"><span>/loop wakeup</span><span>${until(s.wakeup.fire_at)} · ${
+      esc(new Date(s.wakeup.fire_at * 1000).toLocaleTimeString())}</span>
+      <span class="p" title="${esc(s.wakeup.reason)}">${esc(s.wakeup.reason || s.wakeup.prompt)}</span></div>`);
+  }
+  for (const t of s.durable_tasks) {
+    rows.push(`<div class="row"><span>durable ${esc(t.id)}</span><span>${esc(t.schedule)}${
+      t.runner ? " · runs here" : " · another session runs it"}</span>
+      <span class="p" title="${esc(t.prompt)}">${esc(t.prompt)}</span></div>`);
+  }
+  return rows.length ? `<div class="sched">${rows.join("")}</div>` : "";
+}
+
+function hash(str) {
+  let h = 2166136261;
+  for (const c of String(str)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return h >>> 0;
+}
+
+const CORAL = "#d97757";
+const px = (x, y, w, h, c, cls = "") =>
+  `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"${cls ? ` class="${cls}"` : ""}/>`;
+
+// Costumes on a 13x8 sprite grid (body cols 2-10, rows 0-5; arms rows 2-3; legs rows 6-7).
+// Hats live in rows -5..-1 above the head.
+const HATS = {
+  party: px(4, -1, 5, 1, "#7c5cff") + px(5, -2, 3, 1, "#ffd34d") + px(6, -3, 1, 1, "#7c5cff")
+    + px(6, -4, 1, 1, "#ff5d8f"),
+  crown: px(3, -1, 7, 1, "#f5b700") + px(3, -2, 1, 1, "#f5b700") + px(6, -2, 1, 1, "#f5b700")
+    + px(9, -2, 1, 1, "#f5b700") + px(6, -1, 1, 1, "#e0245e"),
+  tophat: px(2, -1, 9, 1, "#222") + px(4, -4, 5, 3, "#222") + px(4, -2, 5, 1, "#c0392b"),
+  santa: px(3, -2, 6, 1, "#d62828") + px(4, -3, 4, 1, "#d62828") + px(7, -4, 2, 1, "#d62828")
+    + px(9, -4, 1, 1, "#fff") + px(2, -1, 9, 1, "#fff"),
+  wizard: px(2, -1, 9, 1, "#3b2a8c") + px(4, -2, 5, 1, "#4c37b5") + px(5, -3, 3, 1, "#4c37b5")
+    + px(6, -4, 2, 1, "#4c37b5") + px(7, -5, 1, 1, "#4c37b5") + px(5, -2, 1, 1, "#ffe36e"),
+  beanie: px(2, -1, 9, 1, "#1b5fa8") + px(3, -2, 7, 1, "#2e86de") + px(4, -3, 5, 1, "#2e86de")
+    + px(6, -4, 1, 1, "#feca57"),
+  propeller: px(3, -1, 4, 1, "#f44336") + px(7, -1, 3, 1, "#2a9df4") + px(4, -2, 5, 1, "#2a9df4")
+    + px(6, -3, 1, 1, "#555") + `<g class="prop">${px(3, -4, 3, 1, "#ffd34d") + px(7, -4, 3, 1, "#4caf50")}</g>`,
+  cowboy: px(0, -1, 13, 1, "#8b5a2b") + px(3, -3, 7, 2, "#a0693a") + px(3, -2, 7, 1, "#5c3a1a"),
+  chef: px(3, -1, 7, 1, "#bdbdbd") + px(3, -3, 7, 2, "#f2f2f2") + px(2, -4, 3, 1, "#e6e6e6")
+    + px(5, -5, 3, 2, "#e6e6e6") + px(8, -4, 3, 1, "#e6e6e6") + px(3, -2, 7, 1, "#d6d6d6"),
+  halo: `<g class="halo">${px(4, -3, 5, 1, "#ffd34d")}</g>`,
+  pirate: px(2, -1, 9, 1, "#222") + px(4, -2, 5, 1, "#222") + px(6, -2, 1, 1, "#fff")
+    + px(2, 1, 3, 1, "#111", "patch"),
+  shades: px(2, 1, 3, 1, "#111") + px(8, 1, 3, 1, "#111") + px(5, 1, 3, 0.4, "#111"),
+  headphones: px(2, -2, 9, 1, "#333") + px(1, -1, 1, 2, "#333") + px(11, -1, 1, 2, "#333")
+    + px(0, 0, 2, 2, "#00b894") + px(11, 0, 2, 2, "#00b894"),
+  bowtie: px(5, 4, 1, 1, "#e84393") + px(6, 4, 1, 1, "#b3236f") + px(7, 4, 1, 1, "#e84393"),
+  flowers: [2, 4, 6, 8, 10].map((x) => px(x, -1, 1, 1, "#ff5fa2")).join("")
+    + [3, 5, 7, 9].map((x) => px(x, -1, 1, 1, "#ffd23f")).join(""),
+};
+const HAT_NAMES = Object.keys(HATS);
+
+function spark(seed, mood, small) {
+  const hat = HAT_NAMES[hash(seed) % HAT_NAMES.length];
+  const body = px(2, 0, 9, 6, CORAL) + px(0, 2, 13, 2, CORAL);
+  const legs = [3, 7].map((x) => px(x, 6, 1, 2, CORAL, "leg a")).join("")
+    + [5, 9].map((x) => px(x, 6, 1, 2, CORAL, "leg b")).join("");
+  const eyes = (hat === "pirate" ? [9] : [3, 9]).map((x) => px(x, 1, 1, 1, "#111", "eye")).join("");
+  const zz = mood === "quiet"
+    ? `<g class="zz"><text x="11" y="-1">z</text><text x="11" y="-1">z</text><text x="11" y="-1">z</text></g>` : "";
+  const t = -(performance.now() / 1000).toFixed(2);
+  return `<svg class="spark ${mood} ${small ? "small" : ""}" style="--t:${t}s" viewBox="-1 -6 15 15"
+    aria-hidden="true"><g class="body">${body}${eyes}${HATS[hat]}</g>${legs}${zz}<title>${hat}</title></svg>`;
+}
+
+function mood(s) {
+  if (quiet(s) && !schedCount(s)) return "quiet";
+  return s.status === "busy" ? "busy" : "idle";
+}
+
+function cmdLine(label, text, key) {
+  return `<div class="line"><span class="k">${label}</span><code>${esc(text)}</code>
+    <button class="btn" data-copy="${key}">copy</button></div>`;
+}
+
+function card(s) {
+  const busy = s.status === "busy", inFlight = data.running_actions["pid:" + s.pid];
+  const title = s.title || s.name;
+  const cmd = s.command, n = schedCount(s);
+  const lastIn = s.last_input_at, lastOut = s.last_output_at;
+  const staleCls = (t) => t && Date.now() / 1000 - t > DAY ? "stale" : "";
+  const notes = [];
+  if (cmd.dropped_prompt) notes.push("its initial prompt is left out of the resume command");
+  if (cmd.secret_env.length) notes.push("secret env not repeated: " + cmd.secret_env.join(", "));
+  if (!cmd.resumable) notes.push("cannot be resumed (print mode or no session id)");
+  return `<div class="card ${busy ? "busy" : s.status === "idle" ? "idle" : ""} ${
+      selected.has(s.pid) ? "selected" : ""}" data-pid="${s.pid}">
+    <input type="checkbox" data-sel="${s.pid}" ${selected.has(s.pid) ? "checked" : ""}>
+    <div>
+      <div class="mast">
+        ${spark(s.session_id || s.pid, mood(s))}
+        <span class="title ${title ? "" : "none"}">${esc(title || "untitled session")}</span>
+        ${s.status ? `<span class="chip ${esc(s.status)}">${esc(s.status)}</span>` : ""}
+        ${s.name && s.title ? `<span class="chip">${esc(s.name)}</span>` : ""}
+        <span class="chip">${esc(s.host)}</span>
+        ${s.config_short !== "~/.claude" ? `<span class="chip">${esc(s.config_short)}</span>` : ""}
+        ${n ? `<span class="chip sched">${n} scheduled</span>` : ""}
+        ${quiet(s) ? `<span class="chip old">quiet ${ago(s.last_activity_at || s.started_at).replace(" ago", "")}</span>` : ""}
+        ${s.parent_is_claude ? `<span class="chip">child of a claude</span>` : ""}
+      </div>
+      <div class="cwd" title="${esc(s.cwd)}">${esc(s.cwd_short)}</div>
+      <div class="times">
+        <span class="k">started</span><span class="k">last input</span>
+        <span class="k">last output</span><span class="k">process</span>
+        <span class="v" title="${esc(abs(s.started_at))}">${ago(s.started_at)}</span>
+        <span class="v ${staleCls(lastIn)}" title="${esc(abs(lastIn))}">${lastIn ? ago(lastIn) : "none yet"}</span>
+        <span class="v ${staleCls(lastOut)}" title="${esc(abs(lastOut))}">${lastOut ? ago(lastOut) : "none yet"}</span>
+        <span class="v">${dur(s.cpu_seconds)} cpu · ${s.rss_mb} MB</span>
+      </div>
+      ${s.last_input_text ? `<div class="prompt" title="${esc(s.last_input_text)}">${esc(s.last_input_text)}</div>` : ""}
+      ${schedHtml(s)}
+      <div class="foot">
+        <div class="actions">
+          ${s.cmux ? `<button class="btn" data-act="focus">go to</button>` : ""}
+          <button class="btn" data-copy="shell" ${cmd.resumable ? "" : "disabled"}>copy resume cmd</button>
+          <button class="btn primary ${inFlight === "restart" ? "working" : ""}" data-act="restart"
+            ${cmd.resumable && !inFlight ? "" : "disabled"}>${inFlight === "restart" ? "restarting…" : "restart"}</button>
+          <button class="btn danger ${inFlight === "stop" ? "working" : ""}" data-act="stop"
+            ${inFlight ? "disabled" : ""}>${inFlight === "stop" ? "stopping…" : "stop"}</button>
+          <button class="btn danger" data-act="force" ${inFlight === "force stop" ? "disabled" : ""}>force</button>
+        </div>
+        <span>pid ${s.pid}${s.version ? " · v" + esc(s.version) : ""}</span>
+        ${s.remote_url ? `<a href="${esc(s.remote_url)}" target="_blank" rel="noopener">remote control ↗</a>` : ""}
+      </div>
+      <details class="cmd" data-key="${s.pid}" ${openDetails.has(String(s.pid)) ? "open" : ""}>
+        <summary>command</summary>
+        ${cmdLine("resume", cmd.shell, "shell")}
+        ${cmdLine("original", cmd.original, "original")}
+        ${s.session_id ? cmdLine("session", s.session_id, "sid") : ""}
+        ${notes.length ? `<div class="note">${esc(notes.join(" · "))}</div>` : ""}
+      </details>
+    </div>
+  </div>`;
+}
+
+function pastRow(p) {
+  const inFlight = data.running_actions["sid:" + p.session_id];
+  const when = p.stopped_at || p.updated_at;
+  return `<div class="past" data-sid="${esc(p.session_id)}">
+    <span class="n" title="${esc(p.title || p.name)}">${spark(p.session_id, "stopped", true)} ${esc(p.title || p.name || p.session_id.slice(0, 8))}</span>
+    <span class="n cwd" title="${esc(p.cwd)}">${esc(p.cwd_short)}</span>
+    <span class="note">${p.source === "dashboard" ? "stopped here" : "exited / crashed"}</span>
+    <span class="note" title="${esc(abs(when))}">${ago(when)}</span>
+    <span class="actions">
+      <button class="btn" data-pcopy="1">copy cmd</button>
+      <button class="btn primary ${inFlight ? "working" : ""}" data-pact="start" ${inFlight ? "disabled" : ""}>start</button>
+      <button class="btn" data-pact="dismiss">dismiss</button>
+    </span>
+  </div>`;
+}
+
+function userBusy() {
+  const sel = window.getSelection();
+  return document.querySelector("button.armed") ||
+    (sel && !sel.isCollapsed && $("#list").contains(sel.anchorNode));
+}
+
+function render(force) {
+  if (!data) return;
+  if (!force && userBusy()) return;
+  const S = data.sessions;
+  const hosts = [...new Set(S.map((s) => s.host))].sort();
+  const sel = $("#host");
+  if (sel.options.length - 1 !== hosts.length) {
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">all hosts</option>` +
+      hosts.map((h) => `<option ${h === cur ? "selected" : ""}>${esc(h)}</option>`).join("");
+  }
+  const busy = S.filter((s) => s.status === "busy").length;
+  const q = S.filter((s) => quiet(s) && !schedCount(s)).length;
+  const mem = S.reduce((a, s) => a + s.rss_mb, 0);
+  const sched = S.reduce((a, s) => a + schedCount(s), 0);
+  $("#summary").innerHTML = `<span><b>${S.length}</b> running</span><span><b>${busy}</b> busy</span>
+    <span><b>${q}</b> quiet &gt; 24h with nothing scheduled</span>
+    <span><b>${sched}</b> scheduled jobs</span><span><b>${(mem / 1024).toFixed(1)}</b> GB memory</span>`;
+  $("#updated").textContent = "updated " + new Date(data.generated_at * 1000).toLocaleTimeString();
+
+  for (const pid of [...selected]) if (!S.some((s) => s.pid === pid)) selected.delete(pid);
+  const rows = filtered();
+  $("#list").innerHTML = rows.length ? rows.map(card).join("") : `<div class="empty">no sessions match</div>`;
+  $("#stopSel").disabled = !selected.size;
+  $("#stopSel").textContent = selected.size ? `stop selected (${selected.size})` : "stop selected";
+  $("#past").innerHTML = data.stopped.length ? data.stopped.map(pastRow).join("")
+    : `<div class="empty">nothing stopped recently</div>`;
+
+  for (const t of data.toasts.slice().reverse()) {
+    if (seenToasts.has(t.id)) continue;
+    seenToasts.add(t.id);
+    if (!firstLoad) toast(t.message, t.ok);
+  }
+  firstLoad = false;
+}
+
+const byPid = (pid) => data.sessions.find((s) => s.pid === pid);
+
+$("#list").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button"), cardEl = ev.target.closest(".card");
+  if (!cardEl) return;
+  const s = byPid(Number(cardEl.dataset.pid));
+  if (!s) return;
+  if (ev.target.matches("input[data-sel]")) {
+    ev.target.checked ? selected.add(s.pid) : selected.delete(s.pid);
+    render(true); return;
+  }
+  if (!btn) return;
+  if (btn.dataset.copy) {
+    const text = {shell: s.command.shell, original: s.command.original, sid: s.session_id}[btn.dataset.copy];
+    return copy(text, btn.dataset.copy === "sid" ? "session id" : "command");
+  }
+  const act = btn.dataset.act;
+  const run = async () => {
+    try {
+      const path = act === "force" ? "stop" : act;
+      await post(`/api/session/${s.pid}/${path}`, {lstart: s.lstart, force: act === "force"});
+      if (act !== "focus") refresh();
+    } catch (e) {
+      toast(e.message, false);
+      if (act === "restart") copy(s.command.shell, "resume command instead");
+    }
+  };
+  if (act === "focus") return run();
+  if (act === "restart" || act === "stop" || act === "force") {
+    if (!btn.classList.contains("armed")) {
+      if (s.status === "busy") toast("this session is busy: stopping interrupts its current turn", false);
+      const lost = s.crons.length + (s.wakeup ? 1 : 0);
+      if (lost) toast(`${lost} session-only scheduled job(s) live in this process and will be lost`, false);
+    }
+    return arm(btn, run);
+  }
+});
+
+$("#list").addEventListener("toggle", (ev) => {
+  const d = ev.target;
+  if (d.matches?.("details.cmd")) d.open ? openDetails.add(d.dataset.key) : openDetails.delete(d.dataset.key);
+}, true);
+
+$("#past").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button"), row = ev.target.closest(".past");
+  if (!btn || !row) return;
+  const p = data.stopped.find((x) => x.session_id === row.dataset.sid);
+  if (!p) return;
+  if (btn.dataset.pcopy) return copy(p.command.shell, "command");
+  try {
+    await post(`/api/stopped/${encodeURIComponent(p.session_id)}/${btn.dataset.pact}`);
+    refresh();
+  } catch (e) {
+    toast(e.message, false);
+    if (btn.dataset.pact === "start") copy(p.command.shell, "resume command instead");
+  }
+});
+
+$("#selAll").addEventListener("click", () => { filtered().forEach((s) => selected.add(s.pid)); render(true); });
+$("#stopSel").addEventListener("click", (ev) => arm(ev.target, async () => {
+  for (const pid of [...selected]) {
+    const s = byPid(pid);
+    if (!s) continue;
+    try { await post(`/api/session/${pid}/stop`, {lstart: s.lstart}); }
+    catch (e) { toast(`${s.name || pid}: ${e.message}`, false); }
+  }
+  selected.clear(); refresh();
+}));
+for (const id of ["#q", "#host", "#sort", "#quiet"]) $(id).addEventListener("input", () => render(true));
+
+let timer = null, inflight = false;
+async function refresh() {
+  if (inflight) return;
+  inflight = true;
+  try {
+    const r = await fetch("/api/sessions");
+    if (!r.ok) throw new Error(r.statusText);
+    data = await r.json();
+    $("#banner").innerHTML = "";
+    render();
+  } catch (e) {
+    $("#banner").innerHTML = `<div class="err-banner">cannot reach the monitor: ${esc(e.message)}</div>`;
+  } finally { inflight = false; }
+}
+function start() { refresh(); clearInterval(timer); timer = setInterval(refresh, 5000); }
+document.addEventListener("visibilitychange", () => document.hidden ? clearInterval(timer) : start());
+start();
+</script>
+</body>
+</html>
