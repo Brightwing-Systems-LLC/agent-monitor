@@ -3,7 +3,7 @@
 Bound to 127.0.0.1. The page exposes launch commands and prompt text and can signal processes,
 so two guards apply to every request:
   * the Host header must be localhost / 127.0.0.1 (blocks DNS-rebinding pages from reading it)
-  * POSTs must carry X-Claude-Monitor: 1, a custom header a cross-site form or fetch cannot send
+  * POSTs must carry X-Agent-Monitor: 1, a custom header a cross-site form or fetch cannot send
     without a CORS preflight, which this app never approves.
 """
 
@@ -14,13 +14,14 @@ import threading
 import time
 from pathlib import Path
 
+import psutil
 from flask import Flask, abort, jsonify, request, send_file
 
 from . import actions
 from .gather import Monitor
 
 STATIC = Path(__file__).parent / "static"
-PORT = int(os.environ.get("CLAUDE_MONITOR_PORT", "8447"))
+PORT = int(os.environ.get("AGENT_MONITOR_PORT", "8447"))
 STALE_MAX_AGE_S = 14 * 86400
 
 app = Flask(__name__)
@@ -40,7 +41,7 @@ def _guard():
     host = (request.host or "").rsplit(":", 1)[0]
     if host not in ("localhost", "127.0.0.1"):
         abort(403)
-    if request.method == "POST" and request.headers.get("X-Claude-Monitor") != "1":
+    if request.method == "POST" and request.headers.get("X-Agent-Monitor") != "1":
         abort(403)
 
 
@@ -91,9 +92,21 @@ def apple_touch_icon():
     return send_file(STATIC / "apple-touch-icon.png", max_age=86400)
 
 
+def _own_ancestors() -> set[int]:
+    try:
+        return {p.pid for p in psutil.Process().parents()}
+    except psutil.Error:
+        return set()
+
+
 @app.get("/api/sessions")
 def api_sessions():
     data = monitor.gather()
+    # An agent that started this server (e.g. `just dev` from its shell tool) takes the server
+    # down with it when stopped; the page warns and stops it last.
+    ancestors = _own_ancestors()
+    for s in data["sessions"]:
+        s["hosts_monitor"] = s["pid"] in ancestors
     live_ids = {s["session_id"] for s in data["sessions"] if s["session_id"]}
     with _lock:
         _last.clear()
@@ -227,5 +240,5 @@ def _queue(target: str, label: str, fn):
 
 
 def main() -> None:
-    print(f"claude-monitor: http://localhost:{PORT}")
+    print(f"agent-monitor: http://localhost:{PORT}")
     app.run(host="127.0.0.1", port=PORT, threaded=True, debug=False)

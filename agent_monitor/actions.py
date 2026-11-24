@@ -39,12 +39,12 @@ HC = shutil.which("hc") or str(Path.home() / ".local" / "bin" / "hc")
 
 
 def _state_dir() -> Path:
-    if os.environ.get("CLAUDE_MONITOR_STATE"):
-        return Path(os.environ["CLAUDE_MONITOR_STATE"])
+    if os.environ.get("AGENT_MONITOR_STATE"):
+        return Path(os.environ["AGENT_MONITOR_STATE"])
     if IS_WIN:
-        return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "claude-monitor"
+        return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "agent-monitor"
     return Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / (
-        "claude-monitor"
+        "agent-monitor"
     )
 
 

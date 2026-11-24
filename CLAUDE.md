@@ -1,4 +1,4 @@
-# claude-monitor
+# agent-monitor
 
 A local-only Flask dashboard of running coding-agent sessions (Claude Code, Codex, Gemini) on
 macOS, Linux and Windows. It is **not** a bwsfoundation project: there is no Django, database or
@@ -42,3 +42,7 @@ Adding an agent = a new `agents/<name>.py` plus a body in `mascots.js` `agentBod
 - **SIGTERM is a clean exit for Claude Code** (Remote Control torn down, SessionEnd hooks run,
   about 1 s). Windows has no equivalent, so stop there is TerminateProcess.
 - Never signal a PID without `actions.verify_identity`; PIDs are recycled.
+- **The dashboard dies with whoever started it.** Started by an agent's background shell (`just dev`
+  as a Bash task) it is that agent's descendant, so stopping or exiting the agent kills it and
+  every later click got "Failed to fetch". `hosts_monitor` marks that session, bulk stop does it
+  last, and a failed fetch puts the page in an offline state instead of leaving stale cards.

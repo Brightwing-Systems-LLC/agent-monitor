@@ -2,9 +2,9 @@ import json
 import os
 import time
 
-from claude_monitor import procinfo
-from claude_monitor.agents import claude
-from claude_monitor.procinfo import Proc
+from agent_monitor import procinfo
+from agent_monitor.agents import claude
+from agent_monitor.procinfo import Proc
 
 
 def test_exe_base_handles_every_platform():

@@ -66,7 +66,7 @@ def svg() -> str:
     )
 
 
-out = Path("claude_monitor/static")
+out = Path("agent_monitor/static")
 (out / "favicon.svg").write_text(svg())
 for size, name in [(32, "favicon-32.png"), (180, "apple-touch-icon.png")]:
     (out / name).write_bytes(png(size))

@@ -2,7 +2,7 @@ import base64
 
 import pytest
 
-from claude_monitor import actions
+from agent_monitor import actions
 
 SESSION = {
     "agent": "claude",

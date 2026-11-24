@@ -1,6 +1,6 @@
 import pytest
 
-from claude_monitor import actions, web
+from agent_monitor import actions, web
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def test_post_with_stale_lstart_is_refused_before_any_signal(client, monkeypatch
     r = client.post(
         "/api/session/4242/stop",
         json={"proc_start": 1795526000.0},
-        headers={"Host": "localhost:8447", "X-Claude-Monitor": "1"},
+        headers={"Host": "localhost:8447", "X-Agent-Monitor": "1"},
     )
     assert r.status_code == 409
 
@@ -47,7 +47,7 @@ def test_verify_identity_refuses_a_recycled_pid(monkeypatch):
 
 
 def test_verify_identity_refuses_a_process_that_is_no_longer_the_agent(monkeypatch):
-    from claude_monitor.procinfo import Proc
+    from agent_monitor.procinfo import Proc
 
     monkeypatch.setattr(actions.procinfo, "same_process", lambda pid, started: True)
     monkeypatch.setattr(
@@ -93,3 +93,15 @@ def test_favicons_are_served(client):
     for path in ("/favicon.ico", "/apple-touch-icon.png", "/static/favicon.svg"):
         r = client.get(path, headers={"Host": "localhost:8447"})
         assert r.status_code == 200 and r.data, path
+
+
+def test_session_that_started_the_monitor_is_flagged(client, monkeypatch):
+    me = {"pid": 4242, "session_id": None, "started_at": 0}
+    other = {"pid": 5151, "session_id": None, "started_at": 0}
+    monkeypatch.setattr(
+        web.monitor, "gather", lambda: {"generated_at": 0, "sessions": [me, other], "stale": []}
+    )
+    monkeypatch.setattr(web, "_own_ancestors", lambda: {4242, 1})
+    r = client.get("/api/sessions", headers={"Host": "localhost:8447"})
+    flags = {s["pid"]: s["hosts_monitor"] for s in r.get_json()["sessions"]}
+    assert flags == {4242: True, 5151: False}

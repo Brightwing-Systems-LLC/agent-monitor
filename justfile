@@ -1,6 +1,6 @@
 # Local dashboard of running Claude Code sessions (http://localhost:8447)
 dev:
-    uv run claude-monitor
+    uv run agent-monitor
 
 # Same as dev
 dash: dev

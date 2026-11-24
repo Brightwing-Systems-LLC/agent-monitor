@@ -1,7 +1,7 @@
 import json
 from datetime import UTC
 
-from claude_monitor.transcript import (
+from agent_monitor.transcript import (
     SESSION_CRON_TTL_S,
     TranscriptReader,
     active_session_crons,

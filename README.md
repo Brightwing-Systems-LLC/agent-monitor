@@ -1,20 +1,24 @@
-# claude-monitor
+# agent-monitor
 
 A local dashboard of every coding-agent session running on your machine (**Claude Code**,
 **OpenAI Codex CLI** and **Google Gemini CLI**), with what each one is doing and buttons to
 stop, restart or jump to it.
 
-> **Unofficial.** claude-monitor is an independent project. It is not made, endorsed or
+> **Unofficial.** agent-monitor is an independent project. It is not made, endorsed or
 > supported by Anthropic, OpenAI or Google. "Claude", "Claude Code" and the Claude Code mascot
 > are Anthropic's trademarks and artwork; "Codex" and "Gemini" are trademarks of OpenAI and
 > Google. They are used here only to identify the sessions being monitored.
 
 ```bash
-just dev        # http://localhost:8447  (CLAUDE_MONITOR_PORT to change)
+just dev        # http://localhost:8447  (AGENT_MONITOR_PORT to change)
 ```
 
 Runs on **macOS, Linux and Windows** (Python 3.11+, [uv](https://docs.astral.sh/uv/)). Without
-`just`: `uv run claude-monitor`.
+`just`: `uv run agent-monitor`.
+
+Start it from your own terminal, not from an agent's shell tool. A server started by an agent
+dies when that agent exits or is stopped, and the page then shows it as offline. The session
+that started it is marked **runs this monitor**.
 
 ## What it shows
 
@@ -87,7 +91,7 @@ re-splitting `ps` output, so arguments containing spaces or JSON survive intact.
 
 - The server binds to `127.0.0.1`.
 - Requests whose `Host` header is not localhost are refused, which blocks DNS rebinding.
-- Every POST must carry an `X-Claude-Monitor` header, which a cross-site page cannot send.
+- Every POST must carry an `X-Agent-Monitor` header, which a cross-site page cannot send.
 - Before any signal, the PID's start time and command line are re-checked, so a recycled PID is
   never touched.
 - Commands are built server-side from a session's own argv. The browser never supplies one.

@@ -109,6 +109,7 @@
            background: color-mix(in srgb, CanvasText 85%, var(--ok)); box-shadow: 0 4px 16px #0003; }
   .toast.err { background: var(--err); }
   .err-banner { color: var(--err); margin: .5rem 0; }
+  body.offline #list, body.offline #past { opacity: .45; pointer-events: none; }
   .spark { width: 64px; height: 46px; flex: none; overflow: visible; shape-rendering: crispEdges; }
   .spark.small { width: 31px; height: 22px; vertical-align: middle; }
   .spark * { animation-delay: var(--t, 0s) !important; transform-box: view-box; }
@@ -207,10 +208,17 @@ function dur(sec) {
   return (sec / 3600).toFixed(1) + "h";
 }
 
+const OFFLINE = "the monitor is not running; start it again with `just dev` from your own terminal";
 async function post(url, body) {
-  const r = await fetch(url, {method: "POST",
-    headers: {"Content-Type": "application/json", "X-Claude-Monitor": "1"},
+  let r;
+  try {
+    r = await fetch(url, {method: "POST",
+    headers: {"Content-Type": "application/json", "X-Agent-Monitor": "1"},
     body: JSON.stringify(body || {})});
+  } catch (e) {
+    setOffline(true);
+    throw new Error(OFFLINE);
+  }
   let j = {};
   try { j = await r.json(); } catch (e) {}
   if (!r.ok) throw new Error(j.error || r.statusText);
@@ -320,6 +328,7 @@ function card(s) {
         ${quiet(s) ? `<span class="chip old">quiet ${ago(s.last_activity_at || s.started_at).replace(" ago", "")}</span>` : ""}
         ${s.agent !== "claude" ? `<span class="chip agent-${esc(s.agent)}">${esc(s.agent_label)}</span>` : ""}
         ${s.parent_is_agent ? `<span class="chip">child of another agent</span>` : ""}
+        ${s.hosts_monitor ? `<span class="chip warn" title="This dashboard was started from this session; stopping the session stops the dashboard too">runs this monitor</span>` : ""}
         ${twins(s).length ? `<span class="chip warn" title="Two processes appending to one conversation can interleave its history">same session also open in pid ${twins(s).join(", ")}</span>` : ""}
       </div>
       <div class="cwd" title="${esc(s.cwd)}">${esc(s.cwd_short)}</div>
@@ -454,6 +463,7 @@ $("#list").addEventListener("click", async (ev) => {
   if (act === "restart" || act === "stop" || act === "force") {
     if (!btn.classList.contains("armed")) {
       if (s.status === "busy") toast("this session is busy: stopping interrupts its current turn", false);
+      if (s.hosts_monitor) toast("this session started the monitor: stopping it stops this page too", false);
       const lost = s.crons.length + (s.wakeup ? 1 : 0);
       if (lost) toast(`${lost} session-only scheduled job(s) live in this process and will be lost`, false);
     }
@@ -483,15 +493,26 @@ $("#past").addEventListener("click", async (ev) => {
 
 $("#selAll").addEventListener("click", () => { filtered().forEach((s) => selected.add(s.pid)); render(true); });
 $("#stopSel").addEventListener("click", (ev) => arm(ev.target, async () => {
-  for (const pid of [...selected]) {
+  // A session that hosts this server goes last, or stopping it kills the requests after it.
+  const order = [...selected].sort((a, b) => (byPid(a)?.hosts_monitor ? 1 : 0) - (byPid(b)?.hosts_monitor ? 1 : 0));
+  for (const pid of order) {
     const s = byPid(pid);
     if (!s) continue;
     try { await post(`/api/session/${pid}/stop`, {proc_start: s.proc_start}); }
-    catch (e) { toast(`${s.name || pid}: ${e.message}`, false); }
+    catch (e) {
+      toast(`${s.name || pid}: ${e.message}`, false);
+      if (e.message === OFFLINE) break;
+    }
   }
   selected.clear(); refresh();
 }));
 for (const id of ["#q", "#agent", "#host", "#sort", "#quiet"]) $(id).addEventListener("input", () => render(true));
+
+function setOffline(on, detail) {
+  document.body.classList.toggle("offline", on);
+  $("#banner").innerHTML = on
+    ? `<div class="err-banner">${esc(OFFLINE)}${detail && detail !== "Failed to fetch" ? ` (${esc(detail)})` : ""}</div>` : "";
+}
 
 let timer = null, inflight = false;
 async function refresh() {
@@ -501,10 +522,10 @@ async function refresh() {
     const r = await fetch("/api/sessions");
     if (!r.ok) throw new Error(r.statusText);
     data = await r.json();
-    $("#banner").innerHTML = "";
+    setOffline(false);
     render();
   } catch (e) {
-    $("#banner").innerHTML = `<div class="err-banner">cannot reach the monitor: ${esc(e.message)}</div>`;
+    setOffline(true, e.message);
   } finally { inflight = false; }
 }
 function galleryMode() {

@@ -2,11 +2,11 @@ import json
 import shlex
 from datetime import UTC
 
-from claude_monitor.agents import base, codex, gemini
-from claude_monitor.agents.base import Caches, Candidate
-from claude_monitor.commands import POSIX
-from claude_monitor.procinfo import Proc
-from claude_monitor.transcript import TranscriptReader
+from agent_monitor.agents import base, codex, gemini
+from agent_monitor.agents.base import Caches, Candidate
+from agent_monitor.commands import POSIX
+from agent_monitor.procinfo import Proc
+from agent_monitor.transcript import TranscriptReader
 
 T0 = 1_800_000_000.0
 

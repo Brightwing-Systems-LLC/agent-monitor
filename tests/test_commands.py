@@ -1,9 +1,9 @@
 import re
 import shlex
 
-from claude_monitor import commands
-from claude_monitor.agents import claude
-from claude_monitor.commands import POSIX, PWSH
+from agent_monitor import commands
+from agent_monitor.agents import claude
+from agent_monitor.commands import POSIX, PWSH
 
 
 def test_claude_strips_resume_flags_and_their_values():
