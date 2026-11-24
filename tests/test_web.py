@@ -75,3 +75,9 @@ def test_stopped_entry_survives_a_poll_while_the_process_is_still_exiting(client
     )
     client.get("/api/sessions", headers={"Host": "localhost:8447"})
     assert web.stopped.get("sid-x") is None
+
+
+def test_favicons_are_served(client):
+    for path in ("/favicon.ico", "/apple-touch-icon.png", "/static/favicon.svg"):
+        r = client.get(path, headers={"Host": "localhost:8447"})
+        assert r.status_code == 200 and r.data, path

@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <title>claude sessions</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-1%20-4%2015%2015'%20shape-rendering='crispEdges'%3E%3Cg%20fill='%23d97757'%3E%3Crect%20x='2'%20y='0'%20width='9'%20height='6'/%3E%3Crect%20x='0'%20y='2'%20width='13'%20height='2'/%3E%3Crect%20x='3'%20y='6'%20width='1'%20height='2'/%3E%3Crect%20x='5'%20y='6'%20width='1'%20height='2'/%3E%3Crect%20x='7'%20y='6'%20width='1'%20height='2'/%3E%3Crect%20x='9'%20y='6'%20width='1'%20height='2'/%3E%3C/g%3E%3Crect%20x='3'%20y='1'%20width='1'%20height='1'/%3E%3Crect%20x='9'%20y='1'%20width='1'%20height='1'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root { color-scheme: light dark;
@@ -55,6 +57,7 @@
   .chip.sched { border-color: color-mix(in srgb, var(--accent) 70%, transparent);
                 color: color-mix(in srgb, CanvasText 30%, var(--accent)); }
   .chip.old { border-style: dashed; }
+  .chip.warn { border-color: var(--err); color: color-mix(in srgb, CanvasText 30%, var(--err)); }
   @keyframes pulse { 50% { opacity: .45; } }
   .cwd { color: var(--dim); font-size: .8rem; }
   .times { display: grid; grid-template-columns: repeat(4, minmax(0, max-content)); gap: .1rem 1.6rem;
@@ -104,8 +107,8 @@
            background: color-mix(in srgb, CanvasText 85%, var(--ok)); box-shadow: 0 4px 16px #0003; }
   .toast.err { background: var(--err); }
   .err-banner { color: var(--err); margin: .5rem 0; }
-  .spark { width: 46px; height: 46px; flex: none; overflow: visible; shape-rendering: crispEdges; }
-  .spark.small { width: 22px; height: 22px; }
+  .spark { width: 64px; height: 46px; flex: none; overflow: visible; shape-rendering: crispEdges; }
+  .spark.small { width: 31px; height: 22px; vertical-align: middle; }
   .spark * { animation-delay: var(--t, 0s) !important; transform-box: view-box; }
   .spark.idle .body { animation: bob 2.4s steps(2, jump-none) infinite; }
   .spark.busy .body { animation: bob .5s steps(2, jump-none) infinite; }
@@ -121,6 +124,19 @@
   .spark .zz text:nth-child(2) { animation-delay: calc(var(--t, 0s) + 1s) !important; }
   .spark .zz text:nth-child(3) { animation-delay: calc(var(--t, 0s) + 2s) !important; }
   .spark.stopped { filter: grayscale(1) opacity(.45); }
+  .spark .steam { animation: rise 2s ease-out infinite; }
+  .spark .float { animation: bob 2.2s ease-in-out infinite; }
+  .spark .twinkle { animation: twinkle 1.6s steps(2, jump-none) infinite; }
+  .spark .eye.laser { filter: drop-shadow(0 0 .6px #ff1e1e); }
+  .spark.busy .eye.laser { animation: twinkle .4s steps(2, jump-none) infinite; }
+  .spark.quiet .steam, .spark.quiet .twinkle { animation: none; opacity: .3; }
+  @keyframes rise { 0% { transform: translateY(1px); opacity: 0; } 40% { opacity: 1; }
+                    100% { transform: translateY(-1.5px); opacity: 0; } }
+  @keyframes twinkle { 50% { opacity: .25; } }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem .6rem; }
+  .gallery figure { margin: 0; text-align: center; }
+  .gallery .spark { width: 120px; height: 86px; }
+  .gallery figcaption { font-size: .68rem; color: var(--dim); }
   @keyframes bob { 50% { transform: translateY(-.6px); } }
   @keyframes step { 50% { transform: translateY(-.6px); } }
   @keyframes whirl { to { transform: scaleX(-1); } }
@@ -131,7 +147,7 @@
 </style>
 </head>
 <body>
-<h1>claude sessions <small id="updated"></small></h1>
+<h1>claude sessions <small id="updated"></small><span class="spacer"></span><small><a href="#gallery">mascots</a></small></h1>
 <div class="summary" id="summary"></div>
 <div class="toolbar">
   <input type="search" id="q" placeholder="filter: name, folder, prompt, host…">
@@ -153,6 +169,7 @@
 <div id="past"></div>
 <div id="toasts"></div>
 
+<script src="/static/mascots.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
@@ -255,60 +272,6 @@ function schedHtml(s) {
   return rows.length ? `<div class="sched">${rows.join("")}</div>` : "";
 }
 
-function hash(str) {
-  let h = 2166136261;
-  for (const c of String(str)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
-  return h >>> 0;
-}
-
-const CORAL = "#d97757";
-const px = (x, y, w, h, c, cls = "") =>
-  `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"${cls ? ` class="${cls}"` : ""}/>`;
-
-// Costumes on a 13x8 sprite grid (body cols 2-10, rows 0-5; arms rows 2-3; legs rows 6-7).
-// Hats live in rows -5..-1 above the head.
-const HATS = {
-  party: px(4, -1, 5, 1, "#7c5cff") + px(5, -2, 3, 1, "#ffd34d") + px(6, -3, 1, 1, "#7c5cff")
-    + px(6, -4, 1, 1, "#ff5d8f"),
-  crown: px(3, -1, 7, 1, "#f5b700") + px(3, -2, 1, 1, "#f5b700") + px(6, -2, 1, 1, "#f5b700")
-    + px(9, -2, 1, 1, "#f5b700") + px(6, -1, 1, 1, "#e0245e"),
-  tophat: px(2, -1, 9, 1, "#222") + px(4, -4, 5, 3, "#222") + px(4, -2, 5, 1, "#c0392b"),
-  santa: px(3, -2, 6, 1, "#d62828") + px(4, -3, 4, 1, "#d62828") + px(7, -4, 2, 1, "#d62828")
-    + px(9, -4, 1, 1, "#fff") + px(2, -1, 9, 1, "#fff"),
-  wizard: px(2, -1, 9, 1, "#3b2a8c") + px(4, -2, 5, 1, "#4c37b5") + px(5, -3, 3, 1, "#4c37b5")
-    + px(6, -4, 2, 1, "#4c37b5") + px(7, -5, 1, 1, "#4c37b5") + px(5, -2, 1, 1, "#ffe36e"),
-  beanie: px(2, -1, 9, 1, "#1b5fa8") + px(3, -2, 7, 1, "#2e86de") + px(4, -3, 5, 1, "#2e86de")
-    + px(6, -4, 1, 1, "#feca57"),
-  propeller: px(3, -1, 4, 1, "#f44336") + px(7, -1, 3, 1, "#2a9df4") + px(4, -2, 5, 1, "#2a9df4")
-    + px(6, -3, 1, 1, "#555") + `<g class="prop">${px(3, -4, 3, 1, "#ffd34d") + px(7, -4, 3, 1, "#4caf50")}</g>`,
-  cowboy: px(0, -1, 13, 1, "#8b5a2b") + px(3, -3, 7, 2, "#a0693a") + px(3, -2, 7, 1, "#5c3a1a"),
-  chef: px(3, -1, 7, 1, "#bdbdbd") + px(3, -3, 7, 2, "#f2f2f2") + px(2, -4, 3, 1, "#e6e6e6")
-    + px(5, -5, 3, 2, "#e6e6e6") + px(8, -4, 3, 1, "#e6e6e6") + px(3, -2, 7, 1, "#d6d6d6"),
-  halo: `<g class="halo">${px(4, -3, 5, 1, "#ffd34d")}</g>`,
-  pirate: px(2, -1, 9, 1, "#222") + px(4, -2, 5, 1, "#222") + px(6, -2, 1, 1, "#fff")
-    + px(2, 1, 3, 1, "#111", "patch"),
-  shades: px(2, 1, 3, 1, "#111") + px(8, 1, 3, 1, "#111") + px(5, 1, 3, 0.4, "#111"),
-  headphones: px(2, -2, 9, 1, "#333") + px(1, -1, 1, 2, "#333") + px(11, -1, 1, 2, "#333")
-    + px(0, 0, 2, 2, "#00b894") + px(11, 0, 2, 2, "#00b894"),
-  bowtie: px(5, 4, 1, 1, "#e84393") + px(6, 4, 1, 1, "#b3236f") + px(7, 4, 1, 1, "#e84393"),
-  flowers: [2, 4, 6, 8, 10].map((x) => px(x, -1, 1, 1, "#ff5fa2")).join("")
-    + [3, 5, 7, 9].map((x) => px(x, -1, 1, 1, "#ffd23f")).join(""),
-};
-const HAT_NAMES = Object.keys(HATS);
-
-function spark(seed, mood, small) {
-  const hat = HAT_NAMES[hash(seed) % HAT_NAMES.length];
-  const body = px(2, 0, 9, 6, CORAL) + px(0, 2, 13, 2, CORAL);
-  const legs = [3, 7].map((x) => px(x, 6, 1, 2, CORAL, "leg a")).join("")
-    + [5, 9].map((x) => px(x, 6, 1, 2, CORAL, "leg b")).join("");
-  const eyes = (hat === "pirate" ? [9] : [3, 9]).map((x) => px(x, 1, 1, 1, "#111", "eye")).join("");
-  const zz = mood === "quiet"
-    ? `<g class="zz"><text x="11" y="-1">z</text><text x="11" y="-1">z</text><text x="11" y="-1">z</text></g>` : "";
-  const t = -(performance.now() / 1000).toFixed(2);
-  return `<svg class="spark ${mood} ${small ? "small" : ""}" style="--t:${t}s" viewBox="-1 -6 15 15"
-    aria-hidden="true"><g class="body">${body}${eyes}${HATS[hat]}</g>${legs}${zz}<title>${hat}</title></svg>`;
-}
-
 function mood(s) {
   if (quiet(s) && !schedCount(s)) return "quiet";
   return s.status === "busy" ? "busy" : "idle";
@@ -318,6 +281,9 @@ function cmdLine(label, text, key) {
   return `<div class="line"><span class="k">${label}</span><code>${esc(text)}</code>
     <button class="btn" data-copy="${key}">copy</button></div>`;
 }
+
+const twins = (s) => s.session_id
+  ? data.sessions.filter((o) => o.session_id === s.session_id && o.pid !== s.pid).map((o) => o.pid) : [];
 
 function card(s) {
   const busy = s.status === "busy", inFlight = data.running_actions["pid:" + s.pid];
@@ -343,6 +309,7 @@ function card(s) {
         ${n ? `<span class="chip sched">${n} scheduled</span>` : ""}
         ${quiet(s) ? `<span class="chip old">quiet ${ago(s.last_activity_at || s.started_at).replace(" ago", "")}</span>` : ""}
         ${s.parent_is_claude ? `<span class="chip">child of a claude</span>` : ""}
+        ${twins(s).length ? `<span class="chip warn" title="Two processes appending to one conversation can interleave its history">same session also open in pid ${twins(s).join(", ")}</span>` : ""}
       </div>
       <div class="cwd" title="${esc(s.cwd)}">${esc(s.cwd_short)}</div>
       <div class="times">
@@ -412,6 +379,7 @@ function render(force) {
     sel.innerHTML = `<option value="">all hosts</option>` +
       hosts.map((h) => `<option ${h === cur ? "selected" : ""}>${esc(h)}</option>`).join("");
   }
+  assignCostumes([...S.map((s) => s.session_id || s.pid), ...data.stopped.map((p) => p.session_id)]);
   const busy = S.filter((s) => s.status === "busy").length;
   const q = S.filter((s) => quiet(s) && !schedCount(s)).length;
   const mem = S.reduce((a, s) => a + s.rss_mb, 0);
@@ -521,7 +489,23 @@ async function refresh() {
     $("#banner").innerHTML = `<div class="err-banner">cannot reach the monitor: ${esc(e.message)}</div>`;
   } finally { inflight = false; }
 }
-function start() { refresh(); clearInterval(timer); timer = setInterval(refresh, 5000); }
+function galleryMode() {
+  const on = location.hash === "#gallery";
+  for (const el of document.querySelectorAll(".summary, .toolbar, #list, #past, h2"))
+    el.style.display = on ? "none" : "";
+  let g = $("#gallery");
+  if (on) {
+    if (!g) { g = document.createElement("div"); g.id = "gallery"; $("h1").after(g); }
+    renderGallery(g);
+  } else if (g) g.remove();
+  return on;
+}
+function start() {
+  clearInterval(timer);
+  if (galleryMode()) return;
+  refresh(); timer = setInterval(refresh, 5000);
+}
+window.addEventListener("hashchange", start);
 document.addEventListener("visibilitychange", () => document.hidden ? clearInterval(timer) : start());
 start();
 </script>

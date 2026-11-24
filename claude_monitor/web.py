@@ -81,6 +81,16 @@ def index():
     return send_file(STATIC / "index.html")
 
 
+@app.get("/favicon.ico")
+def favicon():
+    return send_file(STATIC / "favicon-32.png", mimetype="image/png", max_age=86400)
+
+
+@app.get("/apple-touch-icon.png")
+def apple_touch_icon():
+    return send_file(STATIC / "apple-touch-icon.png", max_age=86400)
+
+
 @app.get("/api/sessions")
 def api_sessions():
     data = monitor.gather()
