@@ -1,32 +1,42 @@
-"""Write the mascot favicon as SVG and pixel-exact PNGs (stdlib only)."""
+"""Write the favicon as SVG and pixel-exact PNGs (stdlib only)."""
 
 import struct
 import zlib
 from pathlib import Path
 
-CORAL, EYE = (0xD9, 0x77, 0x57, 255), (0x11, 0x11, 0x11, 255)
+PALETTE = {
+    "B": (0x4B, 0x55, 0x63, 255),  # bezel
+    "S": (0x0F, 0x17, 0x2A, 255),  # screen
+    "G": (0x4A, 0xDE, 0x80, 255),  # heartbeat trace
+    "r": (0xD9, 0x77, 0x57, 255),  # status LEDs, one per agent
+    "b": (0x3B, 0x82, 0xF6, 255),
+    "p": (0xA7, 0x8B, 0xFA, 255),
+}
 CLEAR = (0, 0, 0, 0)
-# 13x8 sprite, padded to 15x15 (1 col each side, rows centred).
+# A monitor showing a heartbeat, three agent LEDs on the bezel.
 ROWS = [
-    "..XXXXXXXXX..",
-    "..XEXXXXXEX..",
-    "XXXXXXXXXXXXX",
-    "XXXXXXXXXXXXX",
-    "..XXXXXXXXX..",
-    "..XXXXXXXXX..",
-    "...X.X.X.X...",
-    "...X.X.X.X...",
+    "................",
+    ".BBBBBBBBBBBBBB.",
+    "BSSSSSGSSSSSSSSB",
+    "BSSSSSGSSSSSSSSB",
+    "BSSSSGSGSSSSSSSB",
+    "BSSSSGSGSSSSSSSB",
+    "BGGGGSSGSSSGGGGB",
+    "BSSSSSSSGSGSSSSB",
+    "BSSSSSSSGSGSSSSB",
+    "BSSSSSSSSGSSSSSB",
+    "BBrBbBpBBBBBBBBB",
+    ".BBBBBBBBBBBBBB.",
+    "......BBBB......",
+    "......BBBB......",
+    "....BBBBBBBB....",
+    "................",
 ]
-GRID = 15
-OFF_X, OFF_Y = 1, 3
+GRID = 16
 
 
 def cell(x, y):
-    gx, gy = x - OFF_X, y - OFF_Y
-    if 0 <= gy < len(ROWS) and 0 <= gx < len(ROWS[0]):
-        ch = ROWS[gy][gx]
-        return CORAL if ch == "X" else EYE if ch == "E" else CLEAR
-    return CLEAR
+    return PALETTE.get(ROWS[y][x], CLEAR)
 
 
 def png(size: int) -> bytes:

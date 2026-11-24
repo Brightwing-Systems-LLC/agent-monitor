@@ -1,4 +1,4 @@
-# Local dashboard of running Claude Code sessions (http://localhost:8447)
+# Local dashboard of running coding-agent sessions (http://localhost:8447)
 dev:
     uv run agent-monitor
 
