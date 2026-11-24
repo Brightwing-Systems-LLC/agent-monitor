@@ -2,7 +2,7 @@
 dev:
     uv run claude-monitor
 
-# Same as dev; matches `just dash` in work/devenv
+# Same as dev
 dash: dev
 
 test *args:

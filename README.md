@@ -3,6 +3,14 @@
 A local dashboard of every Claude Code session running on this Mac, with what each one is
 doing and buttons to stop, restart or jump to it.
 
+> **Unofficial.** claude-monitor is an independent project. It is not made, endorsed or
+> supported by Anthropic. "Claude", "Claude Code" and the Claude Code mascot are Anthropic's
+> trademarks and artwork, used here only to identify the sessions being monitored.
+
+**Platform: macOS only, for now.** Process discovery reads argv and env through macOS's
+`sysctl(KERN_PROCARGS2)`, and the launchers expect cmux (`/Applications/cmux.app`) or herdr.
+Linux and Windows are not supported yet.
+
 ```bash
 just dev        # http://localhost:8447  (CLAUDE_MONITOR_PORT to change)
 ```
